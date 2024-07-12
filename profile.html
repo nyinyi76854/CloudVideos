@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #fff;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        .profile-pic-container {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto;
+        }
+        .profile-pic {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+        }
+        .profile-icon {
+            font-size: 100px;
+            color: black;
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+            display: none; /* Initially hidden, will be shown if no profile picture is available */
+        }
+        .profile-info {
+            margin-top: 20px;
+        }
+        .profile-info div {
+            margin: 10px 0;
+        }
+        #file-input {
+            display: none;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <input type="file" id="file-input">
+        <div class="profile-pic-container" id="profile-pic-container">
+            <i id="profile-icon" class="fas fa-user-circle profile-icon"></i>
+            <img id="profile-pic" class="profile-pic" style="display: none;">
+        </div>
+        <div class="profile-info">
+            <div id="profile-name">Loading...</div>
+            <div id="profile-age">Loading...</div>
+            <div id="profile-gender">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Firebase JavaScript SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyA_SwraEEOVgPEY4LeWj5BFCEnp0ISBMqI",
+            authDomain: "cloudysocial-2cf2f.firebaseapp.com",
+            databaseURL: "https://cloudysocial-2cf2f-default-rtdb.firebaseio.com",
+            projectId: "cloudysocial-2cf2f",
+            storageBucket: "cloudysocial-2cf2f.appspot.com",
+            messagingSenderId: "423797592083",
+            appId: "1:423797592083:web:e88ce69745e9335b2f6fe6",
+            measurementId: "G-0LP83EFY37"
+        };
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const database = firebase.database();
+        const storage = firebase.storage();
+
+        // Load profile info
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                loadProfileInfo(user.uid);
+                loadProfilePicture(user.email);
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        function loadProfileInfo(uid) {
+            // Load latest name
+            database.ref('names').orderByChild('timestamp').limitToLast(1).once('value', snapshot => {
+                const nameData = snapshot.val();
+                if (nameData) {
+                    const latestName = Object.values(nameData)[0].name;
+                    document.getElementById('profile-name').textContent = latestName;
+                } else {
+                    document.getElementById('profile-name').textContent = 'Name not set';
+                }
+            });
+
+            // Load latest age
+            database.ref('ages').orderByChild('timestamp').limitToLast(1).once('value', snapshot => {
+                const ageData = snapshot.val();
+                if (ageData) {
+                    const latestAge = Object.values(ageData)[0].birthdate;
+                    document.getElementById('profile-age').textContent = latestAge;
+                } else {
+                    document.getElementById('profile-age').textContent = 'Age not set';
+                }
+            });
+
+            // Load latest gender
+            database.ref('genders').orderByChild('timestamp').limitToLast(1).once('value', snapshot => {
+                const genderData = snapshot.val();
+                if (genderData) {
+                    const latestGender = Object.values(genderData)[0].gender;
+                    document.getElementById('profile-gender').textContent = latestGender;
+                } else {
+                    document.getElementById('profile-gender').textContent = 'Gender not set';
+                }
+            });
+        }
+
+        function loadProfilePicture(email) {
+            database.ref('profilesphoto').orderByChild('uploaderEmail').equalTo(email).once('value', snapshot => {
+                const photoData = snapshot.val();
+                const profileIcon = document.getElementById('profile-icon');
+                const profilePic = document.getElementById('profile-pic');
+
+                if (photoData) {
+                    const photos = Object.values(photoData);
+                    photos.sort((a, b) => b.timestamp - a.timestamp);
+                    const latestPhoto = photos[0].photoUrl;
+
+                    profileIcon.style.display = 'none';
+                    profilePic.src = latestPhoto;
+                    profilePic.style.display = 'block';
+                } else {
+                    profileIcon.style.display = 'block';
+                    profilePic.style.display = 'none';
+                }
+            });
+        }
+
+        // Handle profile picture upload
+        const profilePicContainer = document.getElementById('profile-pic-container');
+        const fileInput = document.getElementById('file-input');
+
+        profilePicContainer.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (event) => {
+            const user = firebase.auth().currentUser;
+            if (user) {
+                const file = event.target.files[0];
+                if (file) {
+                    const storageRef = storage.ref('profilesphoto/' + file.name);
+                    const uploadTask = storageRef.put(file);
+
+                    uploadTask.on('state_changed', 
+                        (snapshot) => {
+                            // Handle progress
+                        }, 
+                        (error) => {
+                            console.error("Error uploading file:", error);
+                        }, 
+                        () => {
+                            uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                                const timestamp = Date.now();
+                                const photoData = {
+                                    uploaderEmail: user.email,
+                                    photoUrl: downloadURL,
+                                    timestamp: timestamp
+                                };
+                                database.ref('profilesphoto').push(photoData).then(() => {
+                                    loadProfilePicture(user.email);
+                                });
+                            });
+                        }
+                    );
+                }
+            }
+        });
+    </script>
+</body>
+</html>
